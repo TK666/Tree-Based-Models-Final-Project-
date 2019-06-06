@@ -131,9 +131,10 @@ ui <- fluidPage(
                        sliderInput("eta",
                                    label = "Learning Rate",
                                    min = 0, max = 1,
-                                   value = 0.5,
-                                   step = 0.1,
-                                   p("Scale the contribution of each tree by a factor of (0, 1) when it is added to the current approximation.")),
+                                   value = 0.08,
+                                   step = 0.01,
+                                   p("Scale the contribution of each tree by a factor of (0, 1) when it is added to the current approximation.
+                                     Lower value for eta implies larger value for nrounds: low eta value means model more robust to overfitting but slower to compute. ")),
                        sliderInput("nthreads",
                                    label = "Nthread",
                                    min = 1, max = 10,
@@ -150,26 +151,44 @@ ui <- fluidPage(
                                    label = "Subsample",
                                    min = 0, max = 1,
                                    value = 0.5,
-                                   step = 0.1,
+                                   step = 0.01,
                                    p("Subsample ratio of the training instance.")),
                        sliderInput("min_child_weight",
                                    label = "Min Child Weight",
                                    min = 1, max = 100,
                                    value = 5,
                                    step = 1,
-                                   p("Minimum sum of instance weight (hessian) needed in a child. "))
+                                   p("Minimum sum of instance weight (hessian) needed in a child. ")),
+                       sliderInput("earlystoppingrounds",
+                                   label = "Early Stopping Rounds",
+                                   min = 1, max = 50,
+                                   value = 5,
+                                   step = 1,
+                                   p("If set to an integer k, training with a validation set will stop if the performance doesn't improve for k rounds. "))
                      
       ),
+      h5('XGBoosting CrossValidation'),
+      checkboxInput("O",
+                    label = "Choose N-Folds",
+                    value = FALSE),
+      conditionalPanel(condition = 'input.O == true',
+                       sliderInput("nfold",
+                                   label = "Nfold(Train Error Test Error)",
+                                   min = 2, max = 20,
+                                   value = 5,
+                                   step = 1,
+                                   p("If set to an integer k, training with a validation set will stop if the performance doesn't improve for k rounds. "))
+                       ),
       hr(),
       
       # Button
 
-      actionButton("goButton", "Desicion Tree Root Mean Square Error!!"),
+      actionButton("goButton", "Desicion Tree Root Mean Square Error !!"),
       hr(),
-      actionButton("goButton1", "Random Forest Root Mean Square Error!!"),
+      actionButton("goButton1", "Random Forest Root Mean Square Error !!"),
       hr(),
-      actionButton("goButton2", "XGBoosting Root Mean Square Error!!"),
-      hr(),
+      actionButton("goButton2", "XGBoosting Root Mean Square Error !!"),
+      actionButton("goButton3", "XGBoosting CrossValidation !!"),
       p("Click the buttons to calculate the Root Mean Square Errors !!!"),
   
      # Built with Shiny by RStudio
@@ -204,6 +223,10 @@ ui <- fluidPage(
       h3("________________________"),
       h5("XGBoosting"),
       verbatimTextOutput("rmsexgb"),
+      h3("________________________"),
+      h5("XGBoosting - CrossValidation
+         Train RMSE vs Test RMSE"),
+      verbatimTextOutput("rmsecv"),
       h3("________________________")
    
 
@@ -269,11 +292,12 @@ server <- function(input, output) {
     } else if (input$Model == "XGBoosting") {
       Target <- Data_train %>% pull(input$Tar)
       BEST_XGB <- xgboost(data = as.matrix(Data_train),label = Target,max.depth = input$maxdepthXGB,
-                          eta = input$eta, nthreads = input$nthreads, nrounds = input$nrounds, subsample = input$subsample,
-                          min_child_weight = input$min_child_weight, objective = "reg:linear")
+                          eta = input$eta, nthreads = input$nthreads,early_stopping_rounds = input$earlystoppingrounds, 
+                          nrounds = input$nrounds, subsample = input$subsample,
+                          min_child_weight = input$min_child_weight,  objective = "reg:linear")
       PRED_XGB <- predict(BEST_XGB, newdata = as.matrix(Data_test))
       BEST_XGB
-    #  })
+
     }
   })
   
@@ -307,15 +331,30 @@ server <- function(input, output) {
     TarGet2 <- Data_test %>% pull(input$Tar)
     BEST_XGB <- xgboost(data = as.matrix(Data_train),label = Target, max.depth = input$maxdepthXGB,
                         eta = input$eta, nthreads = input$nthreads, nrounds = input$nrounds, subsample = input$subsample,
-                        min_child_weight = input$min_child_weight, objective = "reg:linear")
+                        min_child_weight = input$min_child_weight, early_stopping_rounds = input$earlystoppingrounds, objective = "reg:linear")
     PRED_XGB <- predict(BEST_XGB, newdata = as.matrix(Data_test))
-    rmse(actual = TarGet2, predicted = PRED_XGB)
+    RM <- rmse(actual = TarGet2, predicted = PRED_XGB)
+    print(RM)
+    summary(RM)
   })
   # Model
   output$rmsexgb <- renderPrint({
     RMSE_XGBOOSTING()
+    
   })
   
+  RMSE_XGBOOSTINGCV <- eventReactive(input$goButton3, {
+    Target5 <- ClData %>% pull(input$Tar)
+    CV <- xgb.cv(data = as.matrix(ClData), label = Target5, nfold = input$nfold, eta = input$eta,
+                 nthreads = input$nthreads, max.depth = input$maxdepthXGB,nrounds = input$nrounds,
+                 early_stopping_rounds = input$earlystoppingrounds, objective = "reg:linear")
+    print(CV)
+  })
+  # Model
+  output$rmsecv <- renderPrint({
+    RMSE_XGBOOSTINGCV()
+    
+  })
 }
 
 # Create Shiny app ----

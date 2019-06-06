@@ -136,13 +136,14 @@ rmse(actual = Data_test$ETA_JAM,
 set.seed(3)
 # Establish a list of possible values for mtry, nodesize and sampsize
 maxdepthXGB <- c(6,7,8)
-eta <- c(0.1,0.5,0.7)
+eta <- c(0.08)
 nthreads <- c(6,7)
 nrounds <- c(33,34)
 subsample <- c(0.5)
 min_child_weight <- c(5,7)
+earlystoppingrounds <- c(3)
 # Create a data frame containing all combinations 
-hyper_gridXGB <- expand.grid(maxdepth = maxdepthXGB, eta = eta, nthreads = nthreads, nrounds = nrounds,subsample=subsample,min_child_weight=min_child_weight)
+hyper_gridXGB <- expand.grid(earlystoppingrounds=earlystoppingrounds, maxdepth = maxdepthXGB, eta = eta, nthreads = nthreads, nrounds = nrounds,subsample=subsample,min_child_weight=min_child_weight)
 nrow(hyper_gridXGB)
 # Create an empty vector to store RF_models
 XGB_models <- c()
@@ -159,6 +160,7 @@ for (i in 1:nrow(hyper_gridXGB)) {
                              nrounds = hyper_gridXGB$nrounds[i],
                              min_child_weight = hyper_gridXGB$min_child_weight[i],
                              subsample = hyper_gridXGB$subsample[i],
+                             early_stopping_rounds = hyper_gridXGB$earlystoppingrounds[i],
                              objective = "reg:linear")
   
 }
@@ -186,3 +188,7 @@ pred_XGB1 <- predict(object = Best_XGB,
                     newdata = as.matrix(Data_test))
 rmse(actual = Data_test$ETA_JAM, 
      predicted = pred_XGB1)
+
+bst <- xgb.cv(data = as.matrix(ClData),
+              label = ClData$ETA_JAM, nfold = 10,
+              nrounds = 35, objective = "reg:linear", maximize = T)
